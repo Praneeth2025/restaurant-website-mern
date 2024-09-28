@@ -9,11 +9,13 @@ const nodemailer = require('nodemailer');
 const Stripe = require('stripe');
 
 const app = express();
-const PORT = process.env.PORT ||  5000;
+const PORT = 5000;
 const DATA_FILE_PATH = path.join(__dirname, 'data.json');
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5000', // Allow requests from your frontend
+}));
 app.use(bodyParser.json());
 
 // Database connection
@@ -42,6 +44,13 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+app.use('/zenith-bistro', express.static(path.join(__dirname, 'front-end', 'build')));
+
+// The "catchall" handler: for any request that doesn't
+// match one above, send back the React app.
+app.get('/zenith-bistro/*', (req, res) => {
+  res.sendFile(path.join(__dirname + '/front-end/build/index.html'));
+});
 // API endpoint to register a user
 app.post('/myapp', (req, res) => {
   const { username, password, email } = req.body;
@@ -194,49 +203,43 @@ app.post('/api/send-email', async (req, res) => {
   }
 });
 
-
-
-
+// Initialize Stripe
 const stripe = Stripe('sk_test_tR3PYbcVNZZ796tH88S4VQ2u');
-
 
 // Endpoint to create a payment intent
 app.post('/api/payment', async (req, res) => {
   const { amount, currency } = req.body; // Get amount and currency from request
 
   try {
-      const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card'], // Specify payment method types
-          line_items: [
-              {
-                  price_data: {
-                      currency: currency,
-                      product_data: {
-                          name: 'Your Product Name', // Replace with actual product name
-                      },
-                      unit_amount: amount, // Amount should be in smallest currency unit (e.g., cents)
-                  },
-                  quantity: 1, // Adjust quantity as necessary
-              },
-          ],
-          mode: 'payment',
-          success_url: 'http://localhost:3000/success', // Redirect URL on success
-          cancel_url: 'http://localhost:3000/cancel', // Redirect URL on cancellation
-      });
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'], // Specify payment method types
+      line_items: [
+        {
+          price_data: {
+            currency: currency,
+            product_data: {
+              name: 'Your Product Name', // Replace with actual product name
+            },
+            unit_amount: amount, // Amount should be in smallest currency unit (e.g., cents)
+          },
+          quantity: 1, // Adjust quantity as necessary
+        },
+      ],
+      mode: 'payment',
+      success_url: 'http://localhost:3000/success', // Redirect URL on success
+      cancel_url: 'http://localhost:3000/cancel', // Redirect URL on cancellation
+    });
 
-      res.json({ id: session.id }); // Send session ID back to the client
+    res.json({ id: session.id }); // Send session ID back to the client
   } catch (error) {
-      res.status(500).send({ error: error.message });
+    res.status(500).send({ error: error.message });
   }
 });
-
-
 
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-
 
 // API endpoint to delete all items associated with a username
 app.delete('/api/deleteUserItems', (req, res) => {
@@ -269,4 +272,3 @@ app.delete('/api/deleteUserItems', (req, res) => {
     });
   });
 });
-
